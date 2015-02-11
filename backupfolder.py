@@ -89,7 +89,7 @@ def doUploadFile(names, trytime=3):
     cmd.append('-o')
     cmd.append('.bdbackup.output.json')
     cmd.append('http://pcs.baidu.com/rest/2.0/pcs/file?method=upload&app_id=250528&\
-dir=%2F&ondup=newcopy&BDUSS=' + BDUSS + '&filename=' + ('%s' % backup_name))
+dir=%2F&ondup=newcopy&BDUSS=' + BDUSS + '&filename=' + ('%s' % upload_name))
     print 'Uploading %d bytes to server' % os.path.getsize(filename)
 
     if call(cmd) != 0:
