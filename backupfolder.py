@@ -6,6 +6,7 @@ import gzip
 import json
 import struct
 import hashlib
+import multiprocessing
 from subprocess import call
 
 TARBALL_SIZE = 1024 * 1024 * 100 # 100MB
@@ -77,8 +78,16 @@ def makeBackupList(dir):
 
     return _makeBackupList(dir)
 
-def backup(backup_list, backup_name):
-    def uploadFile(filename, upload_name, trytime=3):
+class Uploader(object):
+    def __init__(self):
+        self.pool = multiprocessing.Pool(processes=5)
+        self.jobs = []
+
+    @staticmethod
+    def doUploadFile(names, trytime=3):
+        filename = names[0]
+        upload_name = names[1]
+
         cmd = []
         cmd.append('curl')
         cmd.append('-F')
@@ -91,6 +100,7 @@ dir=%2F&ondup=newcopy&BDUSS=' + BDUSS + '&filename=' + ('%s' % backup_name))
 
         if call(cmd) != 0:
             if trytime <= 0:
+                os.remove(filename)
                 return False
 
             print 'Failed, retrying...'
@@ -100,11 +110,33 @@ dir=%2F&ondup=newcopy&BDUSS=' + BDUSS + '&filename=' + ('%s' % backup_name))
             returned_message = json.loads(target.read())
             target.close()
             os.remove('.bdbackup.output.json')
+            os.remove(filename)
             if not returned_message.has_key('md5'):
                 print 'Upload failed, cloud returns:\n%s' % json.dumps(returned_message, indent=4)
                 return False
             return True
 
+    def doAllJobs(self):
+        results = self.pool.map(Uploader.doUploadFile, self.jobs)
+        self.jobs = []
+        for result in results:
+            if result == False:
+                return False
+
+        return True
+
+    def uploadFile(self, filename, upload_name):
+        myname = '.bdbackup.uploader-%d' % len(self.jobs)
+        cmd = ['mv', filename, myname]
+        call(cmd)
+
+        self.jobs.append((myname, upload_name))
+        if len(self.jobs) == 5:
+            return self.doAllJobs()
+        else:
+            return True
+
+def backup(backup_list, backup_name):
     def dumpAndExit(backup_list):
         print 'Failed to upload some blobs, the backup list has been dumped to bdbackup.json'
         target = open('bdbackup.json', 'w')
@@ -114,6 +146,7 @@ dir=%2F&ondup=newcopy&BDUSS=' + BDUSS + '&filename=' + ('%s' % backup_name))
 
     i = 0
     backup_files = []
+    worker = Uploader()
 
     for job in backup_list:
         f = gzip.open('.bdbackup.tmp', 'w')
@@ -157,14 +190,16 @@ dir=%2F&ondup=newcopy&BDUSS=' + BDUSS + '&filename=' + ('%s' % backup_name))
 
         backup_files.append('%d:%s' % (i, m.hexdigest()))
 
-        upload_status = uploadFile('.bdbackup.tmp', '%s-%d' % (backup_name, i))
-        os.remove('.bdbackup.tmp')
+        upload_status = worker.uploadFile('.bdbackup.tmp', '%s-%d' % (backup_name, i))
 
         if not upload_status:
             dumpAndExit(backup_list)
 
         i += 1
 
+    if not worker.doAllJobs():
+        dumpAndExit(backup_list)
+        
     target = open('.bdbackup.tmp', 'wb')
     target.write('\n'.join(backup_files))
     target.close()
