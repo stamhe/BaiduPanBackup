@@ -12,7 +12,7 @@ All files will be uploaded to http://pan.baidu.com/ as ```<backup_name>-000```, 
 
 ### To restore
 
-The backup files are splited .tar.gz files, just concatenate them and unpack:
+Just concatenate them all together and use tar to unpack:
 
 ```
 cat $(ls <backup_name>-*) | tar -xvf -
