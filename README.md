@@ -8,12 +8,12 @@
 python backupfolder.py <folder_to_backup> <backup_name>
 ```
 
-All files will be uploaded to http://pan.baidu.com/ as ```<backup_name>-0```, ```<backup_name>-1```, ..., ```<backup_name>-stat```
+All files will be uploaded to http://pan.baidu.com/ as ```<backup_name>-000```, ```<backup_name>-001```, ...
 
 ### To restore
 
-Put recover.py into the same directory as backup archive files, and:
+The backup files are splited .tar.gz files, just concatenate them and unpack:
 
 ```
-python recover.py <backup_name>
+cat $(ls <backup_name>-*) | tar -xvf -
 ```
