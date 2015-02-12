@@ -56,6 +56,9 @@ class Uploader(object):
     WORKER_COUNT = 5
 
     def __init__(self, bduss, remote_dir):
+        '''
+        default constructor, remote_dir must be url-encoded
+        '''
         self.pool = multiprocessing.Pool(processes=self.WORKER_COUNT)
         self.jobs = []
         self.bduss = bduss
