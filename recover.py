@@ -7,6 +7,8 @@ import hashlib
 import json
 import os
 
+from backup import BackupBlob
+
 BUFFER_SIZE = 1024 * 1024
 
 archive = sys.argv[1]
@@ -15,11 +17,9 @@ archive_list = target.read().split('\n')
 target.close()
 
 print 'Checking integrity of archive files...'
-for archive_file in archive_list:
-    part = archive_file.split(':')
-    index = part[0]
-    fn = '%s-%s' % (archive, index)
-    md5 = part[1]
+for i in range(0, len(archive_list)):
+    fn = '%s-%d' % (archive, i)
+    md5 = archive_list[i]
 
     m = hashlib.md5()
     f = open(fn, 'rb')
@@ -37,34 +37,8 @@ for archive_file in archive_list:
 print 'All files seems good.'
 
 
-for archive_file in archive_list:
-    fn = '%s-%s' % (archive, archive_file.split(':')[0])
+for i in range(0, len(archive_list)):
+    fn = '%s-%d' % (archive, i)
 
-    target = gzip.open(fn, 'rb')
-    info_size = struct.unpack('!L', target.read(4))[0]
-    info = json.loads(target.read(info_size))
-
-    def mkdir(folder):
-        path = './' + folder
-        os.makedirs(path)
-        print 'Path ', path
-
-    def putFile(filename, offset, data):
-        path = './' + filename
-        target = open(path, 'ab')
-        target.write(data)
-        target.close()
-        print 'Write', path
-
-    for obj in info:
-        filesize = obj['size']
-        if filesize == -1:
-            mkdir(obj['filename'])
-            continue
-        else:
-            fileoffset = obj['start']
-            filename = obj['filename']
-            data = target.read(filesize)
-            putFile(filename, fileoffset, data)
-
-    target.close()
+    blob = BackupBlob(read_from_file=fn)
+    blob.recover()

@@ -3,28 +3,64 @@ import os
 import gzip
 import json
 import hashlib
+import struct
 
 class BackupBlob(object):
     objects = []
     size = 0
     full = False
     BUFFER_SIZE = 1024 * 1024
+    readonly = False
 
-    def __init__(self, size=1024*1024*100, max_size=1024*1024*200):
+    def __init__(self, size=1024*1024*100, max_size=1024*1024*200, read_from_file=None):
         self.expected_size = size
         self.max_size = max_size
+        if read_from_file is not None:
+            self.readonly = True
+            self.read_from_file = read_from_file
+
+    def recover(self):
+        if not self.readonly:
+            return
+
+        target = gzip.open(self.read_from_file, 'rb')
+        len_o = struct.unpack('!L', target.read(4))[0]
+        o = target.read(len_o)
+        objs = json.loads(o)
+        print objs
+        for obj in objs:
+            filename = obj['name']
+            filesize = obj['size']
+
+            print './' + filename
+            if filesize == -1:
+                os.makedirs('./' + filename)
+                continue
+            else:
+                f = open('./' + filename, 'ab')
+                while filesize > 0:
+                    data = target.read(self.BUFFER_SIZE)
+                    f.write(data)
+                    filesize -= len(data)
+
+                f.close()
 
     def writeToFile(self, filename):
+        if self.readonly:
+            return
+
         target = gzip.open(filename, 'wb')
-        target.write(json.dumps(self.objects))
+        o = json.dumps(self.objects)
+        target.write(struct.pack('!L', len(o)))
+        target.write(o)
         for obj in self.objects:
             backup_file = obj['name']
             size = obj['size']
-            offset = obj['offset']
 
             if size == -1:
                 continue
             elif size >0:
+                offset = obj['offset']
                 f = open(backup_file, 'rb')
                 f.seek(0, offset)
 
@@ -59,6 +95,9 @@ class BackupBlob(object):
         return self.full
 
     def feedFolder(self, name):
+        if self.readonly:
+            return
+
         self.objects.append({
             'name': name,
             'size': -1
@@ -68,6 +107,9 @@ class BackupBlob(object):
         '''
         returns how many tailing bytes are rejected.
         '''
+        if self.readonly:
+            return
+
         if self.full:
             raise ValueError('should never feed a full blob!')
 
@@ -115,6 +157,8 @@ class BackupListBuilder(object):
         if not os.path.isdir(directory):
             raise ValueError('%s is not a directory' % directory)
 
+        self.directory = directory
+
         filelist = os.listdir(directory)
         for file in filelist:
             full_path = os.path.join(directory, file)
@@ -128,6 +172,8 @@ class BackupListBuilder(object):
     def getBackupBlobs(self, blob=None):
         if blob is None:
             blob = BackupBlob()
+
+        blob.feedFolder(self.directory)
 
         for file in self.file_list:
             filepath = file[0]

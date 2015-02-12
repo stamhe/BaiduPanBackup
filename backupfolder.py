@@ -17,9 +17,9 @@ builder = BackupListBuilder(sys.argv[1])
 blobs = [x for x in builder.getBackupBlobs()]
 upload_worker = Uploader(BDUSS, '%2F')
 
-i = 0
 md5s = []
-for blob in blobs:
+for i in range(0, len(blobs)):
+    blob = blobs[i]
     md5 = blob.writeToFile('.bdbackup.tmp')
     md5s.append(md5)
     if not upload_worker.uploadFile('.bdbackup.tmp', '%s-%d' % (backup_name, i)):
